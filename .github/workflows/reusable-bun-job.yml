@@ -1,0 +1,46 @@
+name: Run Bun job
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: The version of Node.js to use (default `20`)
+        required: false
+        default: 20
+        type: number
+      operating-system:
+        description: The operating system to use (default `ubuntu-latest`)
+        required: false
+        default: ubuntu-latest
+        type: string
+      with-submodules:
+        description: Whether to include submodules when checking out the repository (default `false`)
+        required: false
+        default: 'false'
+        type: string
+      script-name:
+        description: The name of the bun script to run
+        required: true
+        type: string
+    secrets:
+      NODE_AUTH_TOKEN:
+        description: The token to authenticate with the NPM registry
+        required: false
+
+jobs:
+  run-job:
+    name: Run bun job
+    runs-on: ${{ inputs.operating-system }}
+    steps:
+      - name: Checkout Project
+        uses: actions/checkout@v4
+        with:
+          submodules: ${{ inputs.with-submodules }}
+      - name: Install dependencies
+        uses: nekostech/.github/actions/install-bun-dependencies@main
+        with:
+          node-version: ${{ inputs.node-version }}
+      - name: Run job
+        run: bun run ${{ inputs.script-name }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}

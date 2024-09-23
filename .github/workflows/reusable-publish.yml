@@ -1,0 +1,97 @@
+name: publish
+
+on:
+  workflow_call:
+    inputs:
+      project-name:
+        description: The name of the project
+        required: true
+        type: string
+      node-version:
+        description: The version of Node.js to use (default `20`)
+        required: false
+        default: 20
+        type: number
+      operating-system:
+        description: The operating system to use (default `ubuntu-latest`)
+        required: false
+        default: ubuntu-latest
+        type: string
+      with-submodules:
+        description: Whether to include submodules when checking out the repository (default `false`)
+        required: false
+        default: 'false'
+        type: string
+      working-directory:
+        description: The working directory to run the commands in
+        required: false
+        default: .
+        type: string
+      skip-automatic-bump:
+        description: Whether to skip the automatic bumping of the package version
+        required: false
+        default: false
+        type: boolean
+      build:
+        description: Whether to run `bun run build` before publishing
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      NODE_AUTH_TOKEN:
+        description: The token to authenticate with the NPM registry
+        required: true
+      SKYRA_TOKEN:
+        description: The token to authenticate with the GitHub repository used to bypass `main` branch checks
+        required: true
+
+concurrency:
+  group: ${{ github.workflow }}|${{ github.head_ref || github.ref }}|${{ inputs.working-directory }}|${{ inputs.operating-system }}|${{ inputs.node-version }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    name: Publish ${{ inputs.project-name }}
+    runs-on: ${{ inputs.operating-system }}
+    if: github.repository_owner == 'nekostech'
+    steps:
+      - name: Checkout Project
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: main
+          submodules: ${{ inputs.with-submodules }}
+      - name: Install dependencies
+        uses: nekostech/.github/actions/install-bun-dependencies@main
+        with:
+          node-version: ${{ inputs.node-version }}
+      - name: Configure Git
+        run: |
+          git remote set-url origin "https://${GITHUB_TOKEN}:x-oauth-basic@github.com/${GITHUB_REPOSITORY}.git"
+          git config --local user.email "${GITHUB_EMAIL}"
+          git config --local user.name "${GITHUB_USER}"
+        env:
+          GITHUB_USER: github-actions[bot]
+          GITHUB_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build
+        if: inputs.build
+        run: bun run build
+      - name: Bump Versions and make release
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          if [ "${{ inputs.skip-automatic-bump }}" = "true" ]; then
+            bun run bump --skip-automatic-bump
+          else
+            bun run bump
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Publish to NPM
+        working-directory: ${{ inputs.working-directory }}
+        run: |
+          yarn config set npmAuthToken ${NODE_AUTH_TOKEN}
+          yarn config set npmPublishRegistry "https://registry.yarnpkg.com"
+          yarn npm publish
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NODE_AUTH_TOKEN }}

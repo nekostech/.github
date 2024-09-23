@@ -1,0 +1,30 @@
+name: build
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: The version of Node.js to use (default `20`)
+        required: false
+        default: 20
+        type: number
+      operating-system:
+        description: The operating system to use (default `ubuntu-latest`)
+        required: false
+        default: ubuntu-latest
+        type: string
+      with-submodules:
+        description: Whether to include submodules when checking out the repository (default `false`)
+        required: false
+        default: 'false'
+        type: string
+
+jobs:
+  build:
+    name: Building
+    uses: nekostech/.github/.github/workflows/reusable-bun-job.yml@main
+    with:
+      script-name: build
+      operating-system: ${{ inputs.operating-system }}
+      node-version: ${{ inputs.node-version }}
+      with-submodules: ${{ inputs.with-submodules }}
